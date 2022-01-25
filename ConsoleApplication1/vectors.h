@@ -13,7 +13,7 @@ private:
 public:
     float x, y;
 
-
+    
     vector2D() {
         x = 0;
         y = 0;
@@ -154,14 +154,16 @@ public:
     }
 
     vector2D sub(vector2D a) {
-        x -= a.x;
-        y -= a.y;
+        x = x - a.x;
+        y = y - a.y;
         return vector2D(x, y);
     }
 
-    void mult(float n) {
+    vector2D mult(float n) {
         x *= n;
         y *= n;
+        return vector2D(x, y);
+        return vector2D(x, y);
     }
 
     vector2D mult(vector2D a) {

@@ -1,88 +1,275 @@
 // ConsoleApplication1.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
 
 #include <iostream>
 #include <vector>
 #include "vectors.h"
+#include "pid.h"
 #include "generator.h"
 #include "path.h"
 #include "pursuit.h"
-
-#include <fstream>
-#include <sstream>
-#include <iostream>
-#include <cstdarg>
-#include <string>
-#include <iomanip>
-
-float round_up(float value, int decimal_places) {
-    const float multiplier = std::pow(10.0, decimal_places);
-    return std::ceil(value * multiplier) / multiplier;
-}
-
-void write_csv(std::string filename, std::vector<std::pair<std::string, std::vector<float>>> dataset) {
-    // Make a CSV file with one or more columns of integer values
-    // Each column of data is represented by the pair <column name, column data>
-    //   as std::pair<std::string, std::vector<int>>
-    // The dataset is represented as a vector of these columns
-    // Note that all columns should be the same size
+#include "odom.h"
+#include "util.h"
 
 
-    // Create an output filestream object
-    std::ofstream myFile(filename, std::ofstream::out | std::ofstream::trunc);
-    myFile.clear();
+#include <opencv2/core/core.hpp>
 
-    // Send column names to the stream
-    for (int j = 0; j < dataset.size(); ++j)
-    {
-        myFile << dataset.at(j).first;
-        if (j != dataset.size() - 1) myFile << ","; // No comma at end of line
-    }
-    myFile << "\n";
+// Drawing shapes
+#include <opencv2/imgproc.hpp>
 
-    // Send data to the stream
-    for (int i = 0; i < dataset.at(0).second.size(); ++i)
-    {
-        for (int j = 0; j < dataset.size(); ++j)
-        {
-            myFile << round_up(dataset.at(j).second.at(i), 5);
-            if (j != dataset.size() - 1) myFile << ","; // No comma at end of line
-        }
-        myFile << "\n";
-    }
+#include <opencv2/highgui/highgui.hpp>
+#include "draw.h"
 
-    // Close the file
-    myFile.close();
-}
-
-
-float convertToVelocity(float velocity) {
-    return (60 * velocity) / (2 * M_PI * 2);
-}
-
-float convertToVoltage(float velocity) {
-    float wheel_velocity = (60 * velocity) / (2 * M_PI * 2);
-    return (wheel_velocity / 200) * 127;
-}
-
-vector3D odom(vector3D pos, float leftWheelVelocity, float rightWheelVelocity) {
-    float deltaLeftDistance = 0.01 * 0.1047 * leftWheelVelocity;
-    float deltaRightDistance = 0.01 * 0.1047 * rightWheelVelocity;
-
-    float deltaAverageDistance = (deltaLeftDistance + deltaRightDistance) / 2;
-    float deltaHeading = (deltaRightDistance - deltaLeftDistance) / 12;
-
-    float deltaX = deltaAverageDistance * cos(pos.z + (deltaHeading / 2));
-    float deltaY = deltaAverageDistance * sin(pos.z + (deltaHeading / 2));
-
-    pos.x = pos.x + deltaX;
-    pos.y = pos.y + deltaY;
-    pos.z = pos.z + deltaHeading;
-    return pos;
-}
+using namespace std;
+using namespace cv;
 
 int main() {
-    std::cout << "Hello";
+  
+    generator pathGenerator;
+
+    pathGenerator.addPoint(vector3D(20, -10, 90));
+    pathGenerator.addPoint(vector3D(-40, 48, 180));
+   // pathGenerator.addPoint(vector3D(-4, -30, 270));
+
+    pathGenerator.setVelocities(39, 3, 2);
+
+    path robotPath = pathGenerator.generatePath();
+
+    pursuitPath = robotPath.getRobotPath();
+
+    std::vector<float> path_x_coordinate;
+    std::vector<float> path_y_coordinate;
+
+    for (int i = 0; i < pursuitPath.size(); i++) {
+        path_x_coordinate.push_back(pursuitPath.at(i).point.x);
+        path_y_coordinate.push_back(pursuitPath.at(i).point.y);
+    }
+
+    // Reading the Image
+    Mat image = imread("C:/Users/dilan/source/repos/ConsoleApplication1/ConsoleApplication1/VRC_Field_update_720x720.png",
+        IMREAD_COLOR);
+
+    // Check if the image is created
+    // successfully or not
+    if (!image.data) {
+        std::cout << "Could not open or "
+            << "find the image\n";
+        return 0;
+    }
+
+    Mat new_path_img = drawPath(image, path_x_coordinate, path_y_coordinate);
+
+    int lastClosestPoint = 0;
+    float lookaheadDistance = 10; //change lookahead Distance to show
+    float changeLkhd = lookaheadDistance;
+    bool isForward = true;
+    bool onLastSegment = false;
+
+    pursuit pursue;
+    vector3D pos = pathGenerator.getPoint(0);
+    float finalHeading = pathGenerator.getLastPoint().z;
+    pos.toRadians();
+
+    PID drive;
+    PID orientation;
+    pidInit(orientation, 0.25, 0, 0, 0, 0);
+    pidInit(drive, -1, 0, 0, 0, 0);
+
+    std::vector<float> posX, posY, posZ, lookAheadX, lookAheadY, leftWheelVelocity, rightWheelVelocity, lkhdDist, onLast, index, curv;
+
+    int count = 0;
+    bool run = true;
+
+    vector2D lookaheadPoint = vector2D(0, 0);
+    float leftWheelVel, rightWheelVel;
+
+    string s;
+    cin >> s;
+
+
+
+   
+    while(run) {
+
+
+        vector2D currPose = pos.to2D();
+        float heading = pos.z;
+
+        int closestPointIndex = pursue.getClosestPointIndex(currPose);
+
+        
+
+        std::vector<hermite> points = pursuitPath;
+      
+
+        for (int i = closestPointIndex + 1; i < points.size(); i++) {
+
+            vector2D startPoint = points.at(i - 1).point;
+            vector2D endPoint = points.at(i).point;
+
+            // std::cout << "Start Point: " << startPoint.x << " " << startPoint.y << "\n";
+            // std::cout << "End Point: " << endPoint.x << " " << endPoint.y << "\n";
+
+           // lookaheadDistance = pursue.changeLkhdDist(pos.x, pos.y, lookaheadDistance);
+
+            if (i == points.size() - 1) {
+                onLastSegment = true;
+            }
+
+
+            vector2D lookaheadPtOptional = pursue.calculateLookAheadPoint(startPoint, endPoint, currPose, lookaheadDistance, onLastSegment);
+
+            //  std::cout << lookaheadPtOptional.x << " " << lookaheadPtOptional.y;
+
+
+            if (!lookaheadPtOptional.getEmpty()) {
+                lookaheadPoint = lookaheadPtOptional;
+                break;
+            }
+        }
+
+        //add rate limiter ?
+        //need to come up with better solution
+
+        //what we need to do: set lookahead point to a very small value
+
+        /*
+        if (closestPointIndex == points.size() - 1) {
+
+            vector2D startPoint = points.at(points.size() - 2).point;
+            vector2D endPoint = points.at(points.size() - 1).point;
+
+            lookaheadDistance = 1;
+            onLastSegment = false;
+            
+            vector2D lookaheadPtOptional = pursue.calculateLookAheadPoint(startPoint, endPoint, currPose, lookaheadDistance, onLastSegment);
+            if (!lookaheadPtOptional.getEmpty()) {
+                lookaheadPoint = lookaheadPtOptional;
+            }
+        }8?
+        */
+       // std::cout << lookaheadPoint.x << " " << lookaheadPoint.y << "\n";
+
+        float curvature = pursue.calculateCurvatureLookAheadArc(currPose, heading, lookaheadPoint, lookaheadDistance);
+
+        //std::cout << curvature << "\n";
+
+        float leftTargetVel = pursue.calculateLeftTargetVelocity(pursuitPath.at(pursue.getClosestPointIndex(currPose)).velocity, curvature);
+        float rightTargetVel = pursue.calculateRightTargetVelocity(pursuitPath.at(pursue.getClosestPointIndex(currPose)).velocity, curvature);
+
+        leftWheelVel = convertToVelocity(leftTargetVel);
+        rightWheelVel = convertToVelocity(rightTargetVel);
+
+        if (closestPointIndex == pursuitPath.size() - 1) {
+
+          
+            vector2D lastPoint = pursuitPath.at(pursuitPath.size() - 1).point;
+
+            float distance = currPose.dist(lastPoint);
+
+            float vel = pidCalculate(drive, 0, distance);
+            float headingCorrection = pidCalculate(orientation, finalHeading, heading * (180 / M_PI));
+
+            lookaheadPoint = pursuitPath.at(pursuitPath.size() - 1).point;
+            lookaheadDistance = distance;
+
+            curvature = pursue.calculateCurvatureLookAheadArc(currPose, heading, lookaheadPoint, lookaheadDistance);
+
+            leftTargetVel = pursue.calculateLeftTargetVelocity(vel, curvature);
+            rightTargetVel = pursue.calculateRightTargetVelocity(vel, curvature);
+
+            leftWheelVel = convertToVelocity(leftTargetVel);
+            rightWheelVel = convertToVelocity(rightTargetVel);
+         
+            
+            if (distance < 0.2) {
+                leftWheelVel = -headingCorrection;
+                rightWheelVel = headingCorrection;
+                if (heading * (180 / M_PI) > finalHeading - 1 && heading * (180 / M_PI) < finalHeading + 1) {
+                    leftWheelVel = 0;
+                    rightWheelVel = 0;
+                }
+            }
+
+            //std::cout << heading << endl;
+
+            //std::cout << headingCorrection << endl;
+
+           // std::cout << vel << " " << convertToVelocity(leftTargetVel) << " " << convertToVelocity(rightTargetVel) << endl;
+
+        }
+
+        // std::cout << convertToVelocity(leftTargetVel) << " " << convertToVelocity(rightTargetVel) << "\n";
+
+        drawRobot(new_path_img, pos, lookaheadPoint, leftWheelVel, rightWheelVel);
+
+
+     //   std::cout << lookaheadDistance << " " << round_up(lookaheadPoint.x, 2) << " " << round_up(lookaheadPoint.y, 2) << "\n";
+
+        /*
+        posX.push_back(pos.x);
+        posY.push_back(pos.y);
+        posZ.push_back(pos.z * (180 / M_PI));
+        lookAheadX.push_back(lookaheadPoint.x);
+        lookAheadY.push_back(lookaheadPoint.y);
+        leftWheelVelocity.push_back(leftWheelVel);
+        rightWheelVelocity.push_back(rightWheelVel);
+        lkhdDist.push_back(lookaheadDistance);
+        onLast.push_back(onLastSegment);
+        index.push_back(closestPointIndex);
+        curv.push_back(pursuitPath.at(pursue.getClosestPointIndex(currPose)).velocity);
+        */
+        pos = odom(pos, leftWheelVel, rightWheelVel);
+        
+
+       // count++;
+        //std::cout << count << endl;
+        
+    }
+     
+     drawRobot(new_path_img, pos, lookaheadPoint, leftWheelVel, rightWheelVel);
+
+   /* std::vector<std::pair<std::string, std::vector<float>>> data = {{"PosX",posX}, {"PosY",posY}, {"LKHD DIST", lkhdDist},
+    {"lookAheadX", lookAheadX}, {"lookAheadY", lookAheadY}, {"left", leftWheelVelocity}, {"right", rightWheelVelocity}, {"ONLAST", onLast}, {"INDEX", index}, {"VEL", curv} };
+    write_csv("cool.csv", data);*/
+
+
+
+
+
+
+    //every time you iterate through pure pursuit, create a tmp image to draw on and set that as the image to create 
+
+
+
+
+
+
+    /*
+    // Top Left Coordinates
+    Point p1(30, 70);
+
+    // Bottom Right Coordinates
+    Point p2(115, 155);
+
+    
+    int thickness = 2;
+
+    // Drawing the Rectangle
+    rectangle(image, p1, p2,
+        Scalar(255, 0, 0),
+        thickness, LINE_8);
+
+    circle(image, Point(720, 720), 5,
+        Scalar(0, 0, 0),
+        FILLED,
+        LINE_8);*/
+
+    
+    // Show our image inside a window
+    //imshow("Output", new_path_img);
+    //waitKey(0);
+
+    
 
 
     /*

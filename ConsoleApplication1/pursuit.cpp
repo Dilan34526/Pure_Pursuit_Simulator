@@ -89,7 +89,7 @@ float pursuit::changeLkhdDist(float x, float y, float lookaheadDistance) {
     vector2D point1 = vector2D(x, y);
     float error = pursuitPath.at(pursuitPath.size() - 1).point.dist(point1);
     float lDist = lookaheadDistance;
-    if (lookaheadDistance < error) {
+    if (lookaheadDistance > error) {
         lDist = error;
     }
     return lDist;

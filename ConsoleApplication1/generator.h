@@ -38,6 +38,14 @@ public:
         points.insert(points.end(), points1.begin(), points.end());
     }
 
+    vector3D getPoint(int index) {
+        return points.at(index);
+    }
+
+    vector3D getLastPoint() {
+        return points.at(points.size() - 1);
+    }
+
     path generatePath() {
         path path1 = path(forward);
         for (int i = 0; i < points.size() - 1; ++i) {
