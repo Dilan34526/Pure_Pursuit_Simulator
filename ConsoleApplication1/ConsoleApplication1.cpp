@@ -28,7 +28,9 @@ int main() {
 
     pathGenerator.addPoint(vector3D(20, -10, 90));
     pathGenerator.addPoint(vector3D(-40, 48, 180));
-   // pathGenerator.addPoint(vector3D(-4, -30, 270));
+    pathGenerator.addPoint(vector3D(-4, -30, 270));
+    pathGenerator.addPoint(vector3D(30, -60, 0));
+    //pathGenerator.addPoint(vector3D(20, -1, 90));
 
     pathGenerator.setVelocities(39, 3, 2);
 
@@ -167,7 +169,7 @@ int main() {
             float distance = currPose.dist(lastPoint);
 
             float vel = pidCalculate(drive, 0, distance);
-            float headingCorrection = pidCalculate(orientation, finalHeading, heading * (180 / M_PI));
+            
 
             lookaheadPoint = pursuitPath.at(pursuitPath.size() - 1).point;
             lookaheadDistance = distance;
@@ -182,6 +184,8 @@ int main() {
          
             
             if (distance < 0.2) {
+                run = false;
+                float headingCorrection = pidCalculate(orientation, finalHeading, heading * (180 / M_PI));
                 leftWheelVel = -headingCorrection;
                 rightWheelVel = headingCorrection;
                 if (heading * (180 / M_PI) > finalHeading - 1 && heading * (180 / M_PI) < finalHeading + 1) {
@@ -205,7 +209,7 @@ int main() {
 
      //   std::cout << lookaheadDistance << " " << round_up(lookaheadPoint.x, 2) << " " << round_up(lookaheadPoint.y, 2) << "\n";
 
-        /*
+        
         posX.push_back(pos.x);
         posY.push_back(pos.y);
         posZ.push_back(pos.z * (180 / M_PI));
@@ -217,7 +221,7 @@ int main() {
         onLast.push_back(onLastSegment);
         index.push_back(closestPointIndex);
         curv.push_back(pursuitPath.at(pursue.getClosestPointIndex(currPose)).velocity);
-        */
+       
         pos = odom(pos, leftWheelVel, rightWheelVel);
         
 
@@ -225,12 +229,14 @@ int main() {
         //std::cout << count << endl;
         
     }
+
+    //the vel needs fixing
      
      drawRobot(new_path_img, pos, lookaheadPoint, leftWheelVel, rightWheelVel);
 
-   /* std::vector<std::pair<std::string, std::vector<float>>> data = {{"PosX",posX}, {"PosY",posY}, {"LKHD DIST", lkhdDist},
+   std::vector<std::pair<std::string, std::vector<float>>> data = {{"PosX",posX}, {"PosY",posY}, {"LKHD DIST", lkhdDist},
     {"lookAheadX", lookAheadX}, {"lookAheadY", lookAheadY}, {"left", leftWheelVelocity}, {"right", rightWheelVelocity}, {"ONLAST", onLast}, {"INDEX", index}, {"VEL", curv} };
-    write_csv("cool.csv", data);*/
+    write_csv("newD.csv", data);
 
 
 

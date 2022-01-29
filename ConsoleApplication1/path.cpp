@@ -53,7 +53,7 @@ std::vector<hermite> path::injectPoints(vector3D startPt, vector3D endPt) {
     float cy = my0;
     float dy = startPt.y;
 
-    for (float t = 0; t < 1.05; t += 0.05) {
+    for (float t = 0; t < 1.01; t += 0.01) {
 
         float xt = (ax * pow(t, 3)) + (bx * pow(t, 2)) + (cx * t) + dx;
         float yt = (ay * pow(t, 3)) + (by * pow(t, 2)) + (cy * t) + dy;
